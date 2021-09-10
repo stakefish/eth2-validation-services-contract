@@ -1,0 +1,9 @@
+node_modules/
+build/
+.ganache/
+package-lock.json
+artifacts
+cache
+coverage/*
+coverage.json
+.env
