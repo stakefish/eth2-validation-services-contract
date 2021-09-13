@@ -567,10 +567,11 @@ describe('Service contract tests', function () {
 
     // get transaction receipt for gas usage
     const receipt = await res2.wait();
+    const feePaid = receipt.gasUsed.mul(res2.gasPrice);
 
     const bobFinalBalance = await ethers.provider.getBalance(bob.address);
-    const expectedGasCost = parseUnits(receipt.gasUsed.toString(), 'gwei');
-    expect(bobFinalBalance).to.equal(bobInitialBalance.sub(expectedGasCost));
+
+    expect(bobFinalBalance).to.equal(bobInitialBalance.sub(feePaid));
   });
 
   it('Calling endOperatorServices() in PreDeposit or Withdrawn state should fail', async function() {
