@@ -565,8 +565,11 @@ describe('Service contract tests', function () {
       .to.emit(serviceContract, 'Deposit')
       .withArgs(bob.address, '0x0');
 
+    // get transaction receipt for gas usage
+    const receipt = await res2.wait();
+
     const bobFinalBalance = await ethers.provider.getBalance(bob.address);
-    const expectedGasCost = parseUnits('39382', 'gwei');
+    const expectedGasCost = parseUnits(receipt.gasUsed.toString(), 'gwei');
     expect(bobFinalBalance).to.equal(bobInitialBalance.sub(expectedGasCost));
   });
 
