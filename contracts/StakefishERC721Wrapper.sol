@@ -48,9 +48,9 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
     // Wrapper functions
 
     /// @dev It can be tricked into performing external calls to a malicious contract, 
-    /// but the token system for each service servicesContract is entirely seperate.
+    /// but the token system for each service servicesContract is entirely separate.
     function mintTo(address servicesContract, address to, uint256 amount) public nonReentrant returns (uint256) {
-        require(amount > 0, "ERC721Wrapper: amount is 0");
+        require(amount > 0, "Amount can't be 0");
 
         uint256 tokenId = _safeMint(to, "");
 
@@ -74,9 +74,9 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
     }
 
     /// @dev It can be tricked into performing external calls to a malicious contract, 
-    /// but the token system for each service servicesContract is entirely seperate.
+    /// but the token system for each service servicesContract is entirely separate.
     function redeemTo(uint256 tokenId, address to) public nonReentrant {
-        require(msg.sender == _owners[tokenId], "ERC721Wrapper: not token owner");
+        require(msg.sender == _owners[tokenId], "Not token owner");
         
         _burn(tokenId);
 
@@ -100,13 +100,13 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
     }
 
     function getDeposit(uint256 tokenId) public view returns (uint256) {
-        require(_owners[tokenId] != address(0), "ERC721Wrapper: token not exist");
+        require(_owners[tokenId] != address(0), "Token does not exist");
 
         return _deposits[tokenId];
     }
 
     function getServicesContract(uint256 tokenId) public view returns (address) {
-        require(_owners[tokenId] != address(0), "ERC721Wrapper: token not exist");
+        require(_owners[tokenId] != address(0), "Token does not exist");
 
         return _servicesContracts[tokenId];
     }
@@ -118,7 +118,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
         address to,
         uint256 tokenId
     ) public override {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: not owner not approved");
+        require(_isApprovedOrOwner(msg.sender, tokenId), "Not owner nor approved");
             
         _transfer(from, to, tokenId);
     }
@@ -129,7 +129,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
         uint256 tokenId,
         bytes memory data
     ) public override {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "ERC721: not owner not approved");
+        require(_isApprovedOrOwner(msg.sender, tokenId), "Not owner nor approved");
 
         _safeTransfer(from, to, tokenId, data);
     }
@@ -144,36 +144,36 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
 
     function approve(address to, uint256 tokenId) public override {
         address owner = _owners[tokenId];
-        require(to != owner, "ERC721: approval to current owner");
+        require(to != owner, "Approval to current owner");
 
         require(
             msg.sender == owner || isApprovedForAll(owner, msg.sender),
-            "ERC721: not owner nor approved for all"
+            "Not owner nor approved for all"
         );
 
         _approve(to, tokenId);
     }
 
     function setApprovalForAll(address operator, bool approved) public override {
-        require(operator != msg.sender, "ERC721: approve to caller");
+        require(operator != msg.sender, "Approve to caller");
 
         _operatorApprovals[msg.sender][operator] = approved;
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
     function balanceOf(address owner) public view override returns (uint256) {
-        require(owner != address(0), "ERC721: balance query for the zero address");
+        require(owner != address(0), "Balance query for the zero address");
         return _balances[owner];
     }
 
     function ownerOf(uint256 tokenId) public view override returns (address) {
         address owner = _owners[tokenId];
-        require(owner != address(0), "ERC721: owner query for nonexistent token");
+        require(owner != address(0), "Owner query for non-existent token");
         return owner;
     }
 
     function getApproved(uint256 tokenId) public view override returns (address) {
-        require(_owners[tokenId] != address(0), "ERC721: approved query for nonexistent token");
+        require(_owners[tokenId] != address(0), "Approved query for non-existent token");
 
         return _tokenApprovals[tokenId];
     }
@@ -183,7 +183,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
     }
 
     function _mint(address to) internal returns (uint256) {
-        require(to != address(0), "ERC721: mint to zero address");
+        require(to != address(0), "Mint to the zero address");
 
         uint256 tokenId = _totalMinted;
         _totalMinted += 1;
@@ -200,7 +200,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
 
         require(
             _checkOnERC721Received(address(0), to, tokenId, data),
-            "ERC721: transfer to non ERC721Receiver"
+            "Transfer to non ERC721Receiver"
         );
     }
 
@@ -219,7 +219,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
         address to,
         uint256 tokenId
     ) internal {
-        require(_owners[tokenId] == from, "ERC721: from is not token owner");
+        require(_owners[tokenId] == from, "From is not token owner");
 
         _approve(address(0), tokenId);
 
@@ -237,7 +237,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
         bytes memory data
     ) internal {
         _transfer(from, to, tokenId);
-        require(_checkOnERC721Received(from, to, tokenId, data), "ERC721: transfer to non ERC721Receiver");
+        require(_checkOnERC721Received(from, to, tokenId, data), "Transfer to non ERC721Receiver");
     }
 
     function _approve(address to, uint256 tokenId) internal {
@@ -248,7 +248,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
 
     function _isApprovedOrOwner(address spender, uint256 tokenId) internal view returns (bool) {
         address owner = _owners[tokenId];
-        require(owner != address(0), "ERC721: operator query for nonexistent token");
+        require(owner != address(0), "Operator query for non-existent token");
         return (spender == owner || getApproved(tokenId) == spender || isApprovedForAll(owner, spender));
     }
 
@@ -263,7 +263,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
                 return retval == IERC721Receiver.onERC721Received.selector;
             } catch (bytes memory reason) {
                 if (reason.length == 0) {
-                    revert("ERC721: transfer to non ERC721Receiver");
+                    revert("Transfer to non ERC721Receiver");
                 } else {
                     assembly {
                         revert(add(32, reason), mload(reason))
@@ -274,5 +274,4 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
             return true;
         }
     }
-
 }

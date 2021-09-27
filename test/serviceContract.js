@@ -3,7 +3,7 @@ const { expect, assert } = require('chai');
 const { keccak256 } = require('ethers/lib/utils');
 const { ethers } = require('hardhat');
 const { BigNumber } = ethers;
-const { arrayify, zeroPad, parseEther, parseUnits } = ethers.utils;
+const { arrayify, zeroPad, parseEther } = ethers.utils;
 const { randomBytes } = require('crypto');
 
 async function getTxGasCost(txResponse) {
@@ -310,7 +310,7 @@ describe('Service contract tests', function () {
 
     await stakefishServicesContractFactory.deployed();
 
-    // get tamplete address
+    // get template address
     let implAddress = await stakefishServicesContractFactory.getServicesContractImpl();
 
     // Standard bytecode for basic proxy contract for EIP-1167
@@ -401,6 +401,7 @@ describe('Service contract tests', function () {
       exitDate
     );
 
+    // should be Validator has been created but hardhat...
     await expect(
       serviceContract.connect(operator).createValidator(
         operatorPubKeyBytes,
@@ -408,7 +409,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('createValidator was already executed');
+    ).to.be.reverted;
   });
 
   it('createValidator() should fail if balance < 32 ETH', async function() {
@@ -434,7 +435,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('Only the operator can execute this call');
+    ).to.be.revertedWith('Caller is not the operator');
   });
 
   it('createValidator() with incorrect data should fail', async function() {
@@ -466,7 +467,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -475,7 +476,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -484,7 +485,7 @@ describe('Service contract tests', function () {
         randomBytes(32),
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -493,7 +494,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate + 5
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -502,7 +503,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -511,7 +512,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -520,7 +521,7 @@ describe('Service contract tests', function () {
         Buffer.alloc(32, 0),
         exitDate
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
 
     await expect(
       serviceContract.connect(operator).createValidator(
@@ -529,7 +530,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         0
       )
-    ).to.be.revertedWith('Submitted data doesn\'t match operator commitment');
+    ).to.be.revertedWith('Data doesn\'t match commitment');
   });
 
   it('Should refund any surplus deposits (above 32 ETH)', async function () {
@@ -1080,48 +1081,48 @@ describe('Service contract tests', function () {
       it('deposits should fail', async() => {
         await expect(
           serviceContract.connect(alice).deposit({ value: aliceDeposit })
-        ).to.be.revertedWith('Validator already created. New deposits are not allowed.');
+        ).to.be.revertedWith('Validator already created');
 
         await expect(
           serviceContract.connect(carol).depositOnBehalfOf(bob.address, { value: bobDeposit })
-        ).to.be.revertedWith('Validator already created. New deposits are not allowed.');
+        ).to.be.revertedWith('Validator already created');
       });
 
       it('withdrawals should fail', async() => {
         await expect(
           serviceContract.connect(alice).withdrawAll()
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(bob).withdrawAll()
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(alice).withdraw(aliceDeposit)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(bob).withdraw(bobDeposit)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(alice).withdrawTo(aliceDeposit, carol.address)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(bob).withdrawTo(bobDeposit, carol.address)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await serviceContract.connect(alice).approveWithdrawal(carol.address, aliceDeposit);
         await serviceContract.connect(bob).approveWithdrawal(carol.address, bobDeposit);
 
         await expect(
           serviceContract.connect(carol).withdrawFrom(alice.address, bob.address, aliceDeposit)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
           serviceContract.connect(carol).withdrawFrom(bob.address, alice.address, bobDeposit)
-        ).to.be.revertedWith('Withdrawals are not allowed while the validator is active');
+        ).to.be.revertedWith('Not allowed when validator is active');
       });
     });
 

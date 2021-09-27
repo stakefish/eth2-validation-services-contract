@@ -55,7 +55,7 @@ describe('ERC20', () => {
     const factory = await StakefishServicesContractFactory.deploy(1000);
     await factory.deployed();
 
-    // get tamplete address
+    // get template address
     let implAddress = await factory.getServicesContractImpl();
 
     // Standard bytecode for basic proxy contract for EIP-1167
@@ -228,6 +228,27 @@ describe('ERC20', () => {
           expect(allowance).to.be.equal(20);
         });
       });
+    });
+  });
+
+  describe('increaseAllowance', () => {
+    it('should be able to increase allowance', async () => {
+      await ERC20.increaseAllowance(operator.address, 10);
+      expect(await ERC20.allowance(owner.address, operator.address)).to.be.equal(10);
+
+      await ERC20.increaseAllowance(operator.address, 10);
+      expect(await ERC20.allowance(owner.address, operator.address)).to.be.equal(20);
+    });
+  });
+
+  describe('decreaseAllowance', () => {
+    it('should be able to decrease allowance', async () => {
+      await ERC20.approve(operator.address, 20);
+      await ERC20.decreaseAllowance(operator.address, 10);
+      expect(await ERC20.allowance(owner.address, operator.address)).to.be.equal(10);
+
+      await ERC20.decreaseAllowance(operator.address, 10);
+      expect(await ERC20.allowance(owner.address, operator.address)).to.be.equal(0);
     });
   });
 

@@ -28,6 +28,7 @@ contract StakefishServicesContractFactory is ProxyFactory, IStakefishServicesCon
     using Address for address payable;
 
     uint256 private constant FULL_DEPOSIT_SIZE = 32 ether;
+    uint256 private constant COMMISSION_RATE_SCALE = 1000000;
 
     uint256 private _minimumDeposit = 0.1 ether;
     address payable private _servicesContractImpl;
@@ -41,6 +42,8 @@ contract StakefishServicesContractFactory is ProxyFactory, IStakefishServicesCon
 
     constructor(uint24 commissionRate)
     {
+        require(uint256(commissionRate) <= COMMISSION_RATE_SCALE, "Commission rate exceeds scale");
+
         _operatorAddress = msg.sender;
         _commissionRate = commissionRate;
         _servicesContractImpl = payable(new StakefishServicesContract());
@@ -54,6 +57,7 @@ contract StakefishServicesContractFactory is ProxyFactory, IStakefishServicesCon
         override
         onlyOperator
     {
+        require(newAddress != address(0), "Address can't be zero address");
         _operatorAddress = newAddress;
 
         emit OperatorChanged(newAddress);
@@ -64,6 +68,7 @@ contract StakefishServicesContractFactory is ProxyFactory, IStakefishServicesCon
         override
         onlyOperator
     {
+        require(uint256(newCommissionRate) <= COMMISSION_RATE_SCALE, "Commission rate exceeds scale");
         _commissionRate = newCommissionRate;
 
         emit CommissionRateChanged(newCommissionRate);

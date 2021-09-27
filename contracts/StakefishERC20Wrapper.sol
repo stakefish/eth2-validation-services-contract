@@ -48,7 +48,7 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
     // Wrapper functions
 
     function mintTo(address to, uint256 amount) public nonReentrant {
-        require(amount > 0, "ERC20Wrapper: amount is 0");
+        require(amount > 0, "Amount can't be 0");
 
         _mint(to, amount);
 
@@ -67,7 +67,7 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
     }
 
     function redeemTo(address to, uint256 amount) public nonReentrant {
-        require(amount > 0, "ERC20Wrapper: amount is 0");
+        require(amount > 0, "Amount can't be 0");
 
         _burn(msg.sender, amount);
 
@@ -109,6 +109,16 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
         return true;
     }
 
+    function increaseAllowance(address spender, uint256 addedValue) external returns (bool) {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender] + addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool) {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender] - subtractedValue);
+        return true;
+    }
+
     function decimals() public pure returns (uint256) {
         return DECIMALS;
     }
@@ -138,7 +148,7 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
         address to,
         uint256 amount
     ) internal {
-        require(to != address(0), "ERC20: transfer to zero address");
+        require(to != address(0), "Transfer to the zero address");
 
         _balances[from] -= amount;
         _balances[to] += amount;
@@ -151,14 +161,14 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
         address spender,
         uint256 amount
     ) internal {
-        require(spender != address(0), "ERC20: approve to zero address");
+        require(spender != address(0), "Approve to the zero address");
         
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
 
     function _mint(address owner, uint256 amount) internal {
-        require(owner != address(0), "ERC20: mint to zero address");
+        require(owner != address(0), "Mint to the zero address");
 
         _totalSupply += amount;
         _balances[owner] += amount;
@@ -167,7 +177,7 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
     }
 
     function _burn(address owner, uint256 amount) internal {
-        require(owner != address(0), "ERC20: burn from zero address");
+        require(owner != address(0), "Burn from the zero address");
 
         _totalSupply -= amount;
         _balances[owner] -= amount;

@@ -54,7 +54,7 @@ describe('StakefishERC721Wrapper', () => {
     const factory = await StakefishServicesContractFactory.deploy(1000);
     await factory.deployed();
 
-    // get tamplete address
+    // get template address
     let implAddress = await factory.getServicesContractImpl();
 
     // Standard bytecode for basic proxy contract for EIP-1167

@@ -2,6 +2,8 @@ const hre = require('hardhat');
 const { expect } = require('chai');
 
 describe('Operator Permissions', function () {
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
   let StakefishServicesContractFactory;
   let stakefishServicesContractFactory;
 
@@ -60,9 +62,9 @@ describe('Operator Permissions', function () {
     ).to.be.equal(accounts[0].address);
   });
 
-  it('Can\'t change operator address to invalid address', async function () {
+  it('Can\'t change operator address to the zero address', async function () {
     // Check tx is reverted
-    await expect(stakefishServicesContractFactory.changeOperatorAddress('0x0'))
+    await expect(stakefishServicesContractFactory.changeOperatorAddress(ZERO_ADDRESS))
       .to.be.reverted;
 
     // Check that current operator is still account 0
@@ -91,7 +93,7 @@ describe('Operator Permissions', function () {
     );
   });
 
-  it('Can\'t change commission rate', async function () {
+  it('Can\'t change commission rate from unauthorized account', async function () {
     // Check that current commission rate is 1000
     expect(await stakefishServicesContractFactory.getCommissionRate()).to.be.equal(
       1000
@@ -102,6 +104,23 @@ describe('Operator Permissions', function () {
       stakefishServicesContractFactory
         .connect(accounts[2])
         .changeCommissionRate(2000)
+    ).to.be.reverted;
+
+    // Check that current commission rate is still 1000
+    expect(await stakefishServicesContractFactory.getCommissionRate()).to.be.equal(
+      1000
+    );
+  });
+
+  it('Can\'t change commission rate to a value that exceeds the commission rate scale', async function () {
+    // Check that current commission rate is 1000
+    expect(await stakefishServicesContractFactory.getCommissionRate()).to.be.equal(
+      1000
+    );
+
+    // Check tx is reverted
+    await expect(
+      stakefishServicesContractFactory.changeCommissionRate(1000000 + 1)
     ).to.be.reverted;
 
     // Check that current commission rate is still 1000

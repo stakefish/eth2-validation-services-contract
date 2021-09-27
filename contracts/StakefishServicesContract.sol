@@ -51,8 +51,17 @@ contract StakefishServicesContract is IStakefishServicesContract {
     modifier onlyOperator() {
         require(
             msg.sender == _operatorAddress,
-            "Only the operator can execute this call"
+            "Caller is not the operator"
         );
+        _;
+    }
+
+    modifier initializer() {
+        require(
+            _state == State.NotInitialized,
+            "Contract is already initialized"
+        );
+        _state = State.PreDeposit;
         _;
     }
 
@@ -62,13 +71,8 @@ contract StakefishServicesContract is IStakefishServicesContract {
         bytes32 operatorDataCommitment
     )
         external
+        initializer
     {
-        require(
-            _state == State.NotInitialized,
-            "Contract is already initialized"
-        );
-
-        _state = State.PreDeposit;
         _commissionRate = commissionRate;
         _operatorAddress = operatorAddress;
         _operatorDataCommitment = operatorDataCommitment;
@@ -87,12 +91,12 @@ contract StakefishServicesContract is IStakefishServicesContract {
     {
         require(
             _state == State.PostDeposit,
-            "The exit date can be updated only while the validator is active"
+            "Validator is not active"
         );
 
         require(
             newExitDate < _exitDate,
-            "New exit date can only be set earlier than the original"
+            "Not earlier than the original value"
         );
 
         _exitDate = newExitDate;
@@ -109,7 +113,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
         onlyOperator
     {
 
-        require(_state == State.PreDeposit, "createValidator was already executed");
+        require(_state == State.PreDeposit, "Validator has been created");
         _state = State.PostDeposit;
 
         require(validatorPubKey.length == 48, "Invalid validator public key");
@@ -122,7 +126,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
                 depositDataRoot,
                 exitDate
             )
-        ), "Submitted data doesn't match operator commitment");
+        ), "Data doesn't match commitment");
 
         _exitDate = exitDate;
 
@@ -144,7 +148,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
     {
         require(
             _state == State.PreDeposit,
-            "Validator already created. New deposits are not allowed."
+            "Validator already created"
         );
 
         return _handleDeposit(msg.sender);
@@ -158,7 +162,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
     {
         require(
             _state == State.PreDeposit,
-            "Validator already created. New deposits are not allowed."
+            "Validator already created"
         );
         return _handleDeposit(depositor);
     }
@@ -184,7 +188,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
     }
 
     string private constant WITHDRAWALS_NOT_ALLOWED =
-        "Withdrawals are not allowed while the validator is active";
+        "Not allowed when validator is active";
 
     function withdrawAll()
         external
@@ -385,7 +389,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
         internal
         returns (uint256)
     {
-        require(amount > 0, "The withdrawn amount should not be zero");
+        require(amount > 0, "Amount shouldn't be zero");
 
         uint256 value = amount * address(this).balance / _totalDeposits;
         // Modern versions of Solidity automatically add underflow checks,
