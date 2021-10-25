@@ -15,8 +15,14 @@ function eth(num) {
   return parseEther(num.toString());
 }
 
+async function setNextBlockTimestamp (timestamp) {
+  if (BigNumber.isBigNumber(timestamp))
+    timestamp = timestamp.toNumber();
+  return ethers.provider.send('evm_setNextBlockTimestamp', [timestamp]);
+}
+
 describe('Service contract tests', function () {
-  const exitDate = BigNumber.from(new Date().getTime() + 10000);
+  let exitDate;
 
   let StakefishServicesContractFactory;
   let stakefishServicesContractFactory;
@@ -297,6 +303,12 @@ describe('Service contract tests', function () {
 
   // Deploy one contract
   beforeEach(async function () {
+    // Can't use hardhat_reset because that breaks gas reporter
+    // https://github.com/cgewecke/hardhat-gas-reporter/issues/62
+    let blockNum = await ethers.provider.getBlockNumber();
+    let timestamp = (await ethers.provider.getBlock(blockNum)).timestamp;
+    exitDate = timestamp + 10000;
+
     StakefishServicesContractFactory = await hre.ethers.getContractFactory(
       'StakefishServicesContractFactory'
     );
@@ -580,9 +592,13 @@ describe('Service contract tests', function () {
 
     await expect(
       serviceContract.connect(operator).endOperatorServices()
-    ).to.be.revertedWith('Not allowed in the current state');
+    ).to.be.revertedWith('Can\'t end with 0 balance');
 
     await serviceContract.connect(operator).deposit({ value: eth(32) });
+
+    await expect(
+      serviceContract.connect(operator).endOperatorServices()
+    ).to.be.revertedWith('Not allowed in the current state');
 
     const contractData = contractsData[0];
     await serviceContract.connect(operator).createValidator(
@@ -593,6 +609,8 @@ describe('Service contract tests', function () {
     );
 
     await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
+
+    await setNextBlockTimestamp(exitDate);
     await serviceContract.connect(operator).endOperatorServices();
 
     expect(await serviceContract.getState()).to.equal(State.Withdrawn);
@@ -647,33 +665,18 @@ describe('Service contract tests', function () {
     );
 
     await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
+    await setNextBlockTimestamp(exitDate);
     await serviceContract.connect(operator).endOperatorServices();
   });
 
-  it('Deposits via direct transfer', async function() {
+  it('Deposits via direct transfer should revert', async function() {
     let aliceDeposit = eth(20);
 
     let depositBefore = await serviceContract.getDeposit(alice.address);
     expect(depositBefore).to.equal(0);
 
-    let res = await alice.sendTransaction({ to: serviceContract.address, value: aliceDeposit});
-    let depositAfter = await serviceContract.getDeposit(alice.address);
-
-    expect(depositAfter).to.equal(aliceDeposit);
-    expect(res).to.emit(serviceContract, 'Deposit').withArgs(alice.address, aliceDeposit);
-
-    let bobDeposit = eth(20);
-    let surplus = eth(8);
-    let actualDeposit = bobDeposit.sub(surplus);
-
-    depositBefore = await serviceContract.getDeposit(bob.address);
-    expect(depositBefore).to.equal(0);
-
-    res = await bob.sendTransaction({ to: serviceContract.address, value: bobDeposit});
-    depositAfter = await serviceContract.getDeposit(bob.address);
-
-    expect(depositAfter).to.equal(actualDeposit);
-    expect(res).to.emit(serviceContract, 'Deposit').withArgs(bob.address, actualDeposit);
+    await expect(alice.sendTransaction({ to: serviceContract.address, value: aliceDeposit}))
+      .to.be.revertedWith('Plain Ether transfer not allowed');
   });
 
   it('depositSize < 32 ETH - totalDeposits', async() => {
@@ -1156,6 +1159,7 @@ describe('Service contract tests', function () {
         );
 
         await operator.sendTransaction({ to: serviceContract.address, value: eth(40), gasPrice: 0 });
+        await setNextBlockTimestamp(exitDate);
         await serviceContract.connect(operator).endOperatorServices();
       });
 
@@ -1431,21 +1435,32 @@ describe('Service contract tests', function () {
         await operator.sendTransaction({ to: serviceContract.address, value: eth(40), gasPrice: 0 });
       });
 
-      it('Commission should be transfered to operator\'s account, ServiceEnd event should be emitted', async() => {
+      it('Commission should not be transfered to operator\'s account directly, ServiceEnd event should be emitted', async() => {
         let ETHBalanceBefore = await ethers.provider.getBalance(operator.address);
 
+        await setNextBlockTimestamp(exitDate);
         let res = await serviceContract.connect(operator).endOperatorServices();
 
-        let ETHBalanceAfter = await ethers.provider.getBalance(operator.address);
+        let ETHBalanceAfterEnd = await ethers.provider.getBalance(operator.address);
         let txCost = await getTxGasCost(res);
-        let timestamp = (await ethers.provider.getBlock(res.blockNumber)).timestamp;
 
-        expect(res).to.emit(serviceContract, 'ServiceEnd').withArgs(timestamp);
-        expect(ETHBalanceAfter).to.equal(ETHBalanceBefore.add(commission).sub(txCost));
+        expect(res).to.emit(serviceContract, 'ServiceEnd');
+        expect(ETHBalanceAfterEnd).to.equal(ETHBalanceBefore.sub(txCost));
+        expect(await serviceContract.getOperatorClaimable()).to.be.equal(commission);
+
+        res = await serviceContract.connect(operator).operatorClaim();
+        expect(res).to.emit(serviceContract, 'Claim').withArgs(operator.address, commission);
+
+        txCost = await getTxGasCost(res);
+        let ETHBalanceAfterClaim = await ethers.provider.getBalance(operator.address);
+
+        expect(ETHBalanceAfterClaim).to.be.equal(ETHBalanceAfterEnd.sub(txCost).add(commission));
       });
 
       it('withdrawAll()', async() => {
+        await setNextBlockTimestamp(exitDate);
         await serviceContract.connect(operator).endOperatorServices();
+        await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
@@ -1483,7 +1498,9 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let bobPartialProfit = bobWithdrawAmount.mul(finalProfit).div(eth(32));
 
+        await setNextBlockTimestamp(exitDate);
         await serviceContract.connect(operator).endOperatorServices();
+        await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
@@ -1547,7 +1564,9 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let finalWithdrawnValue = aliceWithdrawAmount.add(alicePartialProfit);
 
+        await setNextBlockTimestamp(exitDate);
         await serviceContract.connect(operator).endOperatorServices();
+        await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
@@ -1568,7 +1587,9 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let finalWithdrawnValue = aliceWithdrawAmount.add(alicePartialProfit);
 
+        await setNextBlockTimestamp(exitDate);
         await serviceContract.connect(operator).endOperatorServices();
+        await serviceContract.connect(operator).operatorClaim();
 
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount);
         await verifyCallEffects({
@@ -1729,7 +1750,9 @@ describe('Service contract tests', function () {
       );
 
       await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
+      await setNextBlockTimestamp(exitDate);
       await serviceContract.connect(operator).endOperatorServices();
+      await serviceContract.connect(operator).operatorClaim();
 
       expect(await serviceContract.getState()).to.equal(State.Withdrawn);
     });

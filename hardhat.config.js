@@ -39,6 +39,10 @@ module.exports = {
         blockNumber: 13103448, // Doesn't really matter in our case, helps with cache
       },
     },
+    goerli: {
+      url: "https://eth-goerli.alchemyapi.io/v2/oWLcLNjkt-h-45MzIh7sqNJiBRTwe5y5",
+      accounts: ["0x1ac1b43f445fe5ea7b71d6904504fe647f6bc965dfdb1c922f1407e92f4dc342"]
+    }
   },
 
   gasReporter: {

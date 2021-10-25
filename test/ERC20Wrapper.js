@@ -97,8 +97,7 @@ describe('ERC20', () => {
 
   describe('transfer', () => {
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC20.address, 100);
@@ -144,8 +143,7 @@ describe('ERC20', () => {
 
   describe('transferFrom', () => {
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC20.address, 100);
@@ -254,8 +252,7 @@ describe('ERC20', () => {
 
   describe('mintTo()', () => {
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC20.address, 100);
@@ -301,8 +298,7 @@ describe('ERC20', () => {
 
   describe('redeemTo()', () => {
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC20.address, 100);

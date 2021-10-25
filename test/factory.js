@@ -299,8 +299,7 @@ describe('Factory tests', function () {
     describe('when services contracts already have some ethers', function() {
       beforeEach(async function() {
         for (let i = 0; i < 4; i++) {
-          await accounts[1].sendTransaction({
-            to: servicesContracts[i].address,
+          await servicesContracts[i].connect(accounts[1]).deposit({
             value: ethers.utils.parseEther('31'),
           });
         }
@@ -338,8 +337,7 @@ describe('Factory tests', function () {
       beforeEach(async function() {
         minimumDeposit = await stakefishServicesContractFactory.getMinimumDeposit();
         for (let i = 0; i < 2; i++) {
-          await accounts[1].sendTransaction({
-            to: servicesContracts[i].address,
+          await servicesContracts[i].connect(accounts[1]).deposit({
             value: ethers.utils.parseEther('32').sub(minimumDeposit).add(1),
           });
         }

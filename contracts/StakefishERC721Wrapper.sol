@@ -52,17 +52,18 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
     function mintTo(address servicesContract, address to, uint256 amount) public nonReentrant returns (uint256) {
         require(amount > 0, "Amount can't be 0");
 
-        uint256 tokenId = _safeMint(to, "");
-
-        _servicesContracts[tokenId] = servicesContract;
-        _deposits[tokenId] = amount;
-
         bool success = IStakefishServicesContract(payable(servicesContract)).transferDepositFrom(
             msg.sender,
             address(this),
             amount
         );
         require(success, "Transfer deposit failed");
+
+        uint256 tokenId = _safeMint(to, "");
+
+        _servicesContracts[tokenId] = servicesContract;
+        _deposits[tokenId] = amount;
+
 
         emit Mint(servicesContract, msg.sender, to, amount, tokenId);
         
@@ -87,6 +88,9 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
             amount
         );
         require(success, "Transfer deposit failed");
+
+        delete _servicesContracts[tokenId];
+        delete _deposits[tokenId];
 
         emit Redeem(servicesContract, msg.sender, to, amount, tokenId);
     }
@@ -220,6 +224,7 @@ contract StakefishERC721Wrapper is IERC721, ReentrancyGuard {
         uint256 tokenId
     ) internal {
         require(_owners[tokenId] == from, "From is not token owner");
+        require(to != address(0), "Transfer to the zero address");
 
         _approve(address(0), tokenId);
 

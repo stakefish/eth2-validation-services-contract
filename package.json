@@ -1,5 +1,16 @@
 {
-  "name": "Shared ownership validator",
+  "name": "stakefish-services-contract",
+  "version": "1.0.0",
+  "author": "stakefish <hi@stake.fish>",
+  "license": "Apache-2.0",
+  "keywords": [
+    "eth2",
+    "staking",
+    "liquid-staking",
+    "smart-contract",
+    "fractional-deposits",
+    "stakefish"
+  ],
   "scripts": {
     "test": "npx hardhat test",
     "coverage": "npx hardhat coverage",
@@ -7,23 +18,25 @@
     "lint:fix": "eslint test/*.js --fix"
   },
   "devDependencies": {
+    "@chainsafe/bls": "^6.0.2",
+    "@chainsafe/ssz": "^0.8.17",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "chai": "^4.3.4",
+    "chai-as-promised": "^7.1.1",
     "dotenv": "^10.0.0",
     "eslint": "^7.32.0",
     "ethereum-waffle": "^3.4.0",
     "ethers": "^5.4.5",
     "find-config": "^1.0.0",
     "hardhat": "^2.6.1",
-    "hardhat-docgen": "^1.1.1",
-    "hardhat-storage-layout": "^0.1.6",
-    "solidity-coverage": "^0.7.17",
-    "@chainsafe/bls": "^6.0.2",
-    "@chainsafe/ssz": "^0.8.17",
-    "chai-as-promised": "^7.1.1",
     "hardhat-contract-sizer": "^2.0.3",
-    "hardhat-gas-reporter": "^1.0.4"
+    "hardhat-docgen": "^1.1.1",
+    "hardhat-gas-reporter": "^1.0.4",
+    "hardhat-storage-layout": "^0.1.6",
+    "solidity-coverage": "^0.7.17"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@chainsafe/bls-keystore": "^2.0.0"
+  }
 }

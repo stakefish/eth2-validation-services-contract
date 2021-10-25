@@ -29,7 +29,6 @@ contract StakefishServicesContract is IStakefishServicesContract {
     uint256 private constant WEEK = 7 * DAY;
     uint256 private constant YEAR = 365 * DAY;
     uint256 private constant MAX_SECONDS_IN_EXIT_QUEUE = 1 * YEAR;
-    uint256 private constant MAX_TIME_TO_WITHDRAW = 1 * YEAR;
     uint256 private constant COMMISSION_RATE_SCALE = 1000000;
 
     // Packed into a single slot
@@ -44,6 +43,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
     mapping(address => mapping(address => uint256)) private _allowedWithdrawals;
     mapping(address => uint256) private _deposits;
     uint256 private _totalDeposits;
+    uint256 private _operatorClaimable;
 
     IDepositContract public constant depositContract =
         IDepositContract(0x00000000219ab540356cBB839Cbe05303d7705Fa);
@@ -73,6 +73,8 @@ contract StakefishServicesContract is IStakefishServicesContract {
         external
         initializer
     {
+        require(uint256(commissionRate) <= COMMISSION_RATE_SCALE, "Commission rate exceeds scale");
+
         _commissionRate = commissionRate;
         _operatorAddress = operatorAddress;
         _operatorDataCommitment = operatorDataCommitment;
@@ -80,7 +82,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
 
     receive() payable external {
         if (_state == State.PreDeposit) {
-            _handleDeposit(msg.sender);
+            revert("Plain Ether transfer not allowed");
         }
     }
 
@@ -171,20 +173,38 @@ contract StakefishServicesContract is IStakefishServicesContract {
         external
         override
     {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "Can't end with 0 balance");
         require(_state == State.PostDeposit, "Not allowed in the current state");
-        require((msg.sender == _operatorAddress) ||
+        require((msg.sender == _operatorAddress && block.timestamp >= _exitDate) ||
                 (_deposits[msg.sender] > 0 && block.timestamp > _exitDate + MAX_SECONDS_IN_EXIT_QUEUE), "Not allowed at the current time");
 
         _state = State.Withdrawn;
 
-        uint256 balance = address(this).balance;
         if (balance > 32 ether) {
             uint256 profit = balance - 32 ether;
             uint256 finalCommission = profit * _commissionRate / COMMISSION_RATE_SCALE;
-            payable(_operatorAddress).sendValue(finalCommission);
+            _operatorClaimable += finalCommission;
         }
 
-        emit ServiceEnd(block.timestamp);
+        emit ServiceEnd();
+    }
+
+    function operatorClaim()
+        external
+        override
+        onlyOperator
+        returns (uint256)
+    {
+        uint256 claimable = _operatorClaimable;
+        if (claimable > 0) {
+            _operatorClaimable = 0;
+            payable(_operatorAddress).sendValue(claimable);
+
+            emit Claim(_operatorAddress, claimable);
+        }
+
+        return claimable;
     }
 
     string private constant WITHDRAWALS_NOT_ALLOWED =
@@ -234,6 +254,30 @@ contract StakefishServicesContract is IStakefishServicesContract {
         return true;
     }
 
+    function increaseAllowance(
+        address spender,
+        uint256 addedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender] + addedValue);
+        return true;
+    }
+
+    function decreaseAllowance(
+        address spender,
+        uint256 subtractedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        _approve(msg.sender, spender, _allowances[msg.sender][spender] - subtractedValue);
+        return true;
+    }
+
     function approveWithdrawal(
         address spender,
         uint256 amount
@@ -243,6 +287,30 @@ contract StakefishServicesContract is IStakefishServicesContract {
     {
         _allowedWithdrawals[msg.sender][spender] = amount;
         emit WithdrawalApproval(msg.sender, spender, amount);
+    }
+
+    function increaseWithdrawalAllowance(
+        address spender,
+        uint256 addedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        _approve(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] + addedValue);
+        return true;
+    }
+
+    function decreaseWithdrawalAllowance(
+        address spender,
+        uint256 subtractedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        _approve(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] - subtractedValue);
+        return true;
     }
 
     function withdrawFrom(
@@ -381,6 +449,15 @@ contract StakefishServicesContract is IStakefishServicesContract {
         return _operatorDataCommitment;
     }
 
+    function getOperatorClaimable()
+        external
+        view
+        override
+        returns (uint256)
+    {
+        return _operatorClaimable;
+    }
+
     function _executeWithdrawal(
         address depositor,
         address payable beneficiary,
@@ -391,7 +468,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
     {
         require(amount > 0, "Amount shouldn't be zero");
 
-        uint256 value = amount * address(this).balance / _totalDeposits;
+        uint256 value = amount * (address(this).balance - _operatorClaimable) / _totalDeposits;
         // Modern versions of Solidity automatically add underflow checks,
         // so we don't need to `require(_deposits[_depositor] < _deposit` here:
         _deposits[depositor] -= amount;

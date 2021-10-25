@@ -47,6 +47,7 @@ contract StakefishServicesContractFactory is ProxyFactory, IStakefishServicesCon
         _operatorAddress = msg.sender;
         _commissionRate = commissionRate;
         _servicesContractImpl = payable(new StakefishServicesContract());
+        StakefishServicesContract(_servicesContractImpl).initialize(0, address(0), "");
 
         emit OperatorChanged(msg.sender);
         emit CommissionRateChanged(commissionRate);

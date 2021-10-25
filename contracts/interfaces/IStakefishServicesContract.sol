@@ -75,16 +75,21 @@ interface IStakefishServicesContract {
     );
 
     /// @notice Emitted when a validator exits and the operator settles the commission.
-    /// @param timestamp The block timestamp when the operator services are ended.
-    event ServiceEnd(
-        uint256 timestamp
-    );
+    event ServiceEnd();
 
     /// @notice Emitted when deposit to the services contract.
     /// @param from The address of the deposit stake owner.
     /// @param amount The accepted amount of ETH deposited into the services contract.
     event Deposit(
         address from,
+        uint256 amount
+    );
+
+    /// @notice Emitted when operaotr claims commission fee.
+    /// @param receiver The address of the operator.
+    /// @param amount The amount of ETH sent to the operator address.
+    event Claim(
+        address receiver,
         uint256 amount
     );
 
@@ -145,10 +150,25 @@ interface IStakefishServicesContract {
     /// @dev Emits an {Approval} event.
     function approve(address spender, uint256 amount) external returns (bool);
 
+    /// @notice Increases the allowance granted to `spender` by the caller.
+    /// @dev Emits an {Approval} event indicating the upated allowances;
+    function increaseAllowance(address spender, uint256 addValue) external returns (bool);
+
+    /// @notice Decreases the allowance granted to `spender` by the caller.
+    /// @dev Emits an {Approval} event indicating the upated allowances;
+    function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @notice Sets `amount` as the allowance of `spender` over the caller's deposit amount that can be withdrawn.
     /// @dev Emits an {WithdrawalApproval} event.
     function approveWithdrawal(address spender, uint256 amount) external;
+
+    /// @notice Increases the allowance of withdrawal granted to `spender` by the caller.
+    /// @dev Emits an {WithdrawalApproval} event indicating the upated allowances;
+    function increaseWithdrawalAllowance(address spender, uint256 addValue) external returns (bool);
+
+    /// @notice Decreases the allowance of withdrawal granted to `spender` by the caller.
+    /// @dev Emits an {WithdrawwalApproval} event indicating the upated allowances;
+    function decreaseWithdrawalAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @notice Withdraws the ETH of `depositor` which is corresponding to the `amount` of deposit stake to a specified address.
     /// @dev Emits a {Withdrawal} event.
@@ -172,12 +192,19 @@ interface IStakefishServicesContract {
         uint256 amount
     ) external returns (bool);
 
+    /// @notice Transfers operator claimable commission fee to the operator address.
+    /// @dev Emits a {Claim} event.
+    function operatorClaim() external returns (uint256);
+
     /// @notice Returns the remaining number of deposit stake that `spender` will be allowed to withdraw
     /// on behalf of `depositor` through {withdrawFrom}.
     function withdrawalAllowance(address depositor, address spender) external view returns (uint256);
 
     /// @notice Returns the operator service commission rate.
     function getCommissionRate() external view returns (uint256);
+
+    /// @notice Returns operator claimable commission fee.
+    function getOperatorClaimable() external view returns (uint256);
 
     /// @notice Returns the exit date of the validator.
     function getExitDate() external view returns (uint256);

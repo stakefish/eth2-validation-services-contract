@@ -98,8 +98,7 @@ describe('StakefishERC721Wrapper', () => {
       let balance = await ERC721.balanceOf(owner.address);
       expect(balance).to.be.equal(0);
 
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -112,8 +111,7 @@ describe('StakefishERC721Wrapper', () => {
     it('ownerOf() should return correct token owner address', async () => {
       await expect(ERC721.ownerOf(0)).to.be.reverted;
 
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -139,8 +137,7 @@ describe('StakefishERC721Wrapper', () => {
     let tokenId;
 
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -281,8 +278,7 @@ describe('StakefishERC721Wrapper', () => {
     let tokenId;
 
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -316,8 +312,7 @@ describe('StakefishERC721Wrapper', () => {
     let tokenId;
 
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -358,8 +353,7 @@ describe('StakefishERC721Wrapper', () => {
 
   describe('mintTo()', () => {
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
@@ -411,8 +405,7 @@ describe('StakefishERC721Wrapper', () => {
     let tokenId;
 
     beforeEach(async () => {
-      owner.sendTransaction({
-        to: servicesContract.address,
+      await servicesContract.deposit({
         value: 100
       });
       await servicesContract.approve(ERC721.address, 100);
