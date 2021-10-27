@@ -413,7 +413,6 @@ describe('Service contract tests', function () {
       exitDate
     );
 
-    // should be Validator has been created but hardhat...
     await expect(
       serviceContract.connect(operator).createValidator(
         operatorPubKeyBytes,
@@ -421,7 +420,7 @@ describe('Service contract tests', function () {
         contractData.depositData.depositDataRoot,
         exitDate
       )
-    ).to.be.reverted;
+    ).to.be.revertedWith('Validator has been created');
   });
 
   it('createValidator() should fail if balance < 32 ETH', async function() {
@@ -610,7 +609,7 @@ describe('Service contract tests', function () {
 
     await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
 
-    await setNextBlockTimestamp(exitDate);
+    await setNextBlockTimestamp(exitDate + 1);
     await serviceContract.connect(operator).endOperatorServices();
 
     expect(await serviceContract.getState()).to.equal(State.Withdrawn);
@@ -665,7 +664,7 @@ describe('Service contract tests', function () {
     );
 
     await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
-    await setNextBlockTimestamp(exitDate);
+    await setNextBlockTimestamp(exitDate + 1);
     await serviceContract.connect(operator).endOperatorServices();
   });
 
@@ -882,10 +881,21 @@ describe('Service contract tests', function () {
         assert.equal(balance.toString(), totalDeposits.toString(), 'balance should be equal to totalDeposits');
       });
 
+      it('getWithdrawableAmount', async () => {
+        expect(await serviceContract.getWithdrawableAmount(alice.address)).to.be.equal(aliceDeposit);
+        await serviceContract.connect(alice).withdrawAll(0);
+        expect(await serviceContract.getWithdrawableAmount(alice.address)).to.be.equal(0);
+      });
+
+      it('withdrawAll() ETH withdrawn < minimumETHAmount', async () => {
+        await expect(serviceContract.connect(alice).withdrawAll(aliceDeposit + 1))
+          .to.be.revertedWith('Less than minimum amount');
+      });
+
       it('withdrawAll()', async() => {
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', aliceDeposit],
           verifiedUsers:                [ alice         ],
           expectedDepositsBefore:       [ aliceDeposit  ],
           expectedDepositsAfter:        [ eth(0)        ],
@@ -900,7 +910,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', bobDeposit],
           verifiedUsers:                  [ bob         ],
           expectedDepositsBefore:         [ bobDeposit  ],
           expectedDepositsAfter:          [ eth(0)      ],
@@ -914,13 +924,18 @@ describe('Service contract tests', function () {
         });
       });
 
+      it('withdraw() ETH withdrawn < minimumETHAmount', async () => {
+        await expect(serviceContract.connect(alice).withdraw(eth(1), eth(1) + 1))
+          .to.be.revertedWith('Less than minimum amount');
+      });
+
       it('withdraw() amount < deposit, 2 partial withdraws', async() => {
         let aliceWithdrawAmount = eth(8);
         let bobWithdrawAmount = eth(5);
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, aliceWithdrawAmount],
           verifiedUsers:                  [ alice                                 ],
           expectedDepositsBefore:         [ aliceDeposit                          ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount) ],
@@ -932,7 +947,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, bobWithdrawAmount],
           verifiedUsers:                  [ bob                               ],
           expectedDepositsBefore:         [ bobDeposit                        ],
           expectedDepositsAfter:          [ bobDeposit.sub(bobWithdrawAmount) ],
@@ -947,7 +962,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, aliceWithdrawAmount],
           verifiedUsers:                  [ alice                ],
           expectedDepositsAfter:          [ eth(0)               ],
           expectedDepositDiffs:           [ -aliceWithdrawAmount ],
@@ -960,7 +975,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, bobWithdrawAmount],
           verifiedUsers:                  [ bob                ],
           expectedDepositsAfter:          [ eth(0)             ],
           expectedDepositDiffs:           [ -bobWithdrawAmount ],
@@ -977,7 +992,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, aliceWithdrawAmount],
           verifiedUsers:                  [ alice        ],
           expectedDepositsBefore:         [ aliceDeposit ],
           expectedDepositsAfter:          [ aliceDeposit ],
@@ -992,12 +1007,17 @@ describe('Service contract tests', function () {
         });
       });
 
+      it('withdrawTo() ETH withdrawn < minimumETHAmount', async () => {
+        await expect(serviceContract.connect(alice).withdrawTo(eth(1), bob.address, eth(1) + 1))
+          .to.be.revertedWith('Less than minimum amount');
+      });
+
       it('withdrawTo', async() => {
         let aliceWithdrawAmount = eth(5);
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawTo', aliceWithdrawAmount, carol.address],
+          call: ['withdrawTo', aliceWithdrawAmount, carol.address, aliceWithdrawAmount],
           verifiedUsers:                [ alice,                                  carol               ],
           expectedDepositsBefore:       [ aliceDeposit,                           eth(0)              ],
           expectedDepositsAfter:        [ aliceDeposit.sub(aliceWithdrawAmount),  eth(0)              ],
@@ -1010,13 +1030,23 @@ describe('Service contract tests', function () {
         });
       });
 
+      it('withdrawFrom() ETH withdrawn < minimumETHAmount', async () => {
+        await approveWithdrawal(alice, carol.address, eth(1));
+        await expect(serviceContract.connect(carol).withdrawFrom(
+          alice.address,
+          carol.address,
+          eth(1),
+          eth(1) + 1
+        )).to.be.revertedWith('Less than minimum amount');
+      });
+
       it('withdrawFrom should pass if allowance >= withdrawal amount', async() => {
         let aliceWithdrawAmount = eth(5);
 
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount);
         await verifyCallEffects({
           fromAccount: carol,
-          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount],
+          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount, aliceWithdrawAmount],
           verifiedUsers:                [ alice,                                  bob,                  carol  ],
           expectedDepositsBefore:       [ aliceDeposit,                           bobDeposit,           eth(0) ],
           expectedDepositsAfter:        [ aliceDeposit.sub(aliceWithdrawAmount),  bobDeposit,           eth(0) ],
@@ -1033,7 +1063,7 @@ describe('Service contract tests', function () {
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount.div(2));
         await verifyCallEffects({
           fromAccount: carol,
-          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount],
+          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount, aliceWithdrawAmount],
           verifiedUsers:              [ alice,  bob,    carol  ],
           expectedDepositsDiffs:      [ eth(0), eth(0), eth(0) ],
           expectedETHDiffs:           [ eth(0), eth(0), eth(0) ],
@@ -1091,40 +1121,44 @@ describe('Service contract tests', function () {
         ).to.be.revertedWith('Validator already created');
       });
 
+      it('getWithdrawableAmount', async () => {
+        expect(await serviceContract.getWithdrawableAmount(alice.address)).to.be.equal(0);
+      });
+
       it('withdrawals should fail', async() => {
         await expect(
-          serviceContract.connect(alice).withdrawAll()
+          serviceContract.connect(alice).withdrawAll(0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(bob).withdrawAll()
+          serviceContract.connect(bob).withdrawAll(0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(alice).withdraw(aliceDeposit)
+          serviceContract.connect(alice).withdraw(aliceDeposit, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(bob).withdraw(bobDeposit)
+          serviceContract.connect(bob).withdraw(bobDeposit, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(alice).withdrawTo(aliceDeposit, carol.address)
+          serviceContract.connect(alice).withdrawTo(aliceDeposit, carol.address, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(bob).withdrawTo(bobDeposit, carol.address)
+          serviceContract.connect(bob).withdrawTo(bobDeposit, carol.address, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await serviceContract.connect(alice).approveWithdrawal(carol.address, aliceDeposit);
         await serviceContract.connect(bob).approveWithdrawal(carol.address, bobDeposit);
 
         await expect(
-          serviceContract.connect(carol).withdrawFrom(alice.address, bob.address, aliceDeposit)
+          serviceContract.connect(carol).withdrawFrom(alice.address, bob.address, aliceDeposit, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
 
         await expect(
-          serviceContract.connect(carol).withdrawFrom(bob.address, alice.address, bobDeposit)
+          serviceContract.connect(carol).withdrawFrom(bob.address, alice.address, bobDeposit, 0)
         ).to.be.revertedWith('Not allowed when validator is active');
       });
     });
@@ -1159,7 +1193,7 @@ describe('Service contract tests', function () {
         );
 
         await operator.sendTransaction({ to: serviceContract.address, value: eth(40), gasPrice: 0 });
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         await serviceContract.connect(operator).endOperatorServices();
       });
 
@@ -1174,10 +1208,17 @@ describe('Service contract tests', function () {
         assert.equal(totalDeposits.toString(), eth(32).toString(), 'totalDeposits should be 32 ETH');
       });
 
+      it('getWithdrawableAmount', async () => {
+        expect(await serviceContract.getWithdrawableAmount(alice.address))
+          .to.be.equal(aliceDeposit.add(aliceProfit));
+        await serviceContract.connect(alice).withdrawAll(0);
+        expect(await serviceContract.getWithdrawableAmount(alice.address)).to.be.equal(0);
+      });
+
       it('withdrawAll()', async() => {
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', aliceDeposit.add(aliceProfit)],
           verifiedUsers:                  [ alice                         ],
           expectedDepositsBefore:         [ aliceDeposit                  ],
           expectedDepositsAfter:          [ eth(0)                        ],
@@ -1192,7 +1233,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', bobDeposit.add(bobProfit)],
           verifiedUsers:                  [ bob                       ],
           expectedDepositsBefore:         [ bobDeposit                ],
           expectedDepositsAfter:          [ eth(0)                    ],
@@ -1209,7 +1250,7 @@ describe('Service contract tests', function () {
       it('withdraw() amount = deposit', async() => {
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceDeposit],
+          call: ['withdraw', aliceDeposit, aliceDeposit.add(aliceProfit)],
           verifiedUsers:                  [ alice                         ],
           expectedDepositsBefore:         [ aliceDeposit                  ],
           expectedDepositsAfter:          [ eth(0)                        ],
@@ -1223,7 +1264,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobDeposit],
+          call: ['withdraw', bobDeposit, bobDeposit.add(bobProfit)],
           verifiedUsers:                  [ bob                       ],
           expectedDepositsBefore:         [ bobDeposit                ],
           expectedDepositsAfter:          [ eth(0)                    ],
@@ -1245,7 +1286,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice                                       ],
           expectedDepositsBefore:         [ aliceDeposit                                ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount)       ],
@@ -1258,7 +1299,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, 0],
           verifiedUsers:                  [ bob                                     ],
           expectedDepositsBefore:         [ bobDeposit                              ],
           expectedDepositsAfter:          [ bobDeposit.sub(bobWithdrawAmount)       ],
@@ -1276,7 +1317,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice                                       ],
           expectedDepositsAfter:          [ eth(0)                                      ],
           expectedDepositDiffs:           [ -aliceWithdrawAmount                        ],
@@ -1289,7 +1330,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, 0],
           verifiedUsers:                  [ bob                                     ],
           expectedDepositsAfter:          [ eth(0)                                  ],
           expectedDepositDiffs:           [ -bobWithdrawAmount                      ],
@@ -1306,7 +1347,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice        ],
           expectedDepositsBefore:         [ aliceDeposit ],
           expectedDepositsAfter:          [ aliceDeposit ],
@@ -1327,7 +1368,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawTo', aliceWithdrawAmount, carol.address],
+          call: ['withdrawTo', aliceWithdrawAmount, carol.address, 0],
           verifiedUsers:                  [ alice, carol                                        ],
           expectedDepositsBefore:         [ aliceDeposit, eth(0)                                ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount), eth(0)       ],
@@ -1348,7 +1389,7 @@ describe('Service contract tests', function () {
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount);
         await verifyCallEffects({
           fromAccount: carol,
-          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount],
+          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice,                                  bob,                  carol  ],
           expectedDepositsBefore:         [ aliceDeposit,                           bobDeposit,           eth(0) ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount),  bobDeposit,           eth(0) ],
@@ -1365,7 +1406,7 @@ describe('Service contract tests', function () {
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount.div(2));
         await verifyCallEffects({
           fromAccount: carol,
-          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount],
+          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice,  bob,    carol  ],
           expectedDepositsDiffs:          [ eth(0), eth(0), eth(0) ],
           expectedETHDiffs:               [ eth(0), eth(0), eth(0) ],
@@ -1381,7 +1422,7 @@ describe('Service contract tests', function () {
         let expectedAllowance = eth(2);
 
         await approveWithdrawal(alice, carol.address, allowance);
-        await serviceContract.connect(carol).withdrawFrom(alice.address, bob.address, aliceWithdrawAmount);
+        await serviceContract.connect(carol).withdrawFrom(alice.address, bob.address, aliceWithdrawAmount, 0);
         // TODO
         /*
         await verifyCallEffects({
@@ -1438,7 +1479,7 @@ describe('Service contract tests', function () {
       it('Commission should not be transfered to operator\'s account directly, ServiceEnd event should be emitted', async() => {
         let ETHBalanceBefore = await ethers.provider.getBalance(operator.address);
 
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         let res = await serviceContract.connect(operator).endOperatorServices();
 
         let ETHBalanceAfterEnd = await ethers.provider.getBalance(operator.address);
@@ -1458,13 +1499,13 @@ describe('Service contract tests', function () {
       });
 
       it('withdrawAll()', async() => {
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         await serviceContract.connect(operator).endOperatorServices();
         await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', 0],
           verifiedUsers:                  [ alice                         ],
           expectedDepositsBefore:         [ aliceDeposit                  ],
           expectedDepositsAfter:          [ eth(0)                        ],
@@ -1478,7 +1519,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdrawAll'],
+          call: ['withdrawAll', 0],
           verifiedUsers:                  [ bob                       ],
           expectedDepositsBefore:         [ bobDeposit                ],
           expectedDepositsAfter:          [ eth(0)                    ],
@@ -1498,13 +1539,13 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let bobPartialProfit = bobWithdrawAmount.mul(finalProfit).div(eth(32));
 
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         await serviceContract.connect(operator).endOperatorServices();
         await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice                                       ],
           expectedDepositsBefore:         [ aliceDeposit                                ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount)       ],
@@ -1516,7 +1557,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, 0],
           verifiedUsers:                  [ bob                                     ],
           expectedDepositsBefore:         [ bobDeposit                              ],
           expectedDepositsAfter:          [ bobDeposit.sub(bobWithdrawAmount)       ],
@@ -1534,7 +1575,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdraw', aliceWithdrawAmount],
+          call: ['withdraw', aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice                                       ],
           expectedDepositsAfter:          [ eth(0)                                      ],
           expectedDepositDiffs:           [ -aliceWithdrawAmount                        ],
@@ -1547,7 +1588,7 @@ describe('Service contract tests', function () {
 
         await verifyCallEffects({
           fromAccount: bob,
-          call: ['withdraw', bobWithdrawAmount],
+          call: ['withdraw', bobWithdrawAmount, 0],
           verifiedUsers:                  [ bob                                     ],
           expectedDepositsAfter:          [ eth(0)                                  ],
           expectedDepositDiffs:           [ -bobWithdrawAmount                      ],
@@ -1564,13 +1605,13 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let finalWithdrawnValue = aliceWithdrawAmount.add(alicePartialProfit);
 
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         await serviceContract.connect(operator).endOperatorServices();
         await serviceContract.connect(operator).operatorClaim();
 
         await verifyCallEffects({
           fromAccount: alice,
-          call: ['withdrawTo', aliceWithdrawAmount, carol.address],
+          call: ['withdrawTo', aliceWithdrawAmount, carol.address, 0],
           verifiedUsers:                  [ alice,                                  carol               ],
           expectedDepositsBefore:         [ aliceDeposit,                           eth(0)              ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount),  eth(0)              ],
@@ -1587,14 +1628,14 @@ describe('Service contract tests', function () {
         let alicePartialProfit = aliceWithdrawAmount.mul(finalProfit).div(eth(32));
         let finalWithdrawnValue = aliceWithdrawAmount.add(alicePartialProfit);
 
-        await setNextBlockTimestamp(exitDate);
+        await setNextBlockTimestamp(exitDate + 1);
         await serviceContract.connect(operator).endOperatorServices();
         await serviceContract.connect(operator).operatorClaim();
 
         await approveWithdrawal(alice, carol.address, aliceWithdrawAmount);
         await verifyCallEffects({
           fromAccount: carol,
-          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount],
+          call: ['withdrawFrom', alice.address, bob.address, aliceWithdrawAmount, 0],
           verifiedUsers:                  [ alice,                                  bob,                  carol  ],
           expectedDepositsBefore:         [ aliceDeposit,                           bobDeposit,           eth(0) ],
           expectedDepositsAfter:          [ aliceDeposit.sub(aliceWithdrawAmount),  bobDeposit,           eth(0) ],
@@ -1750,7 +1791,7 @@ describe('Service contract tests', function () {
       );
 
       await operator.sendTransaction({ to: serviceContract.address, value: eth(40) });
-      await setNextBlockTimestamp(exitDate);
+      await setNextBlockTimestamp(exitDate + 1);
       await serviceContract.connect(operator).endOperatorServices();
       await serviceContract.connect(operator).operatorClaim();
 
@@ -1784,6 +1825,78 @@ describe('Service contract tests', function () {
         expectedTotalDepositsDiff:  eth(0),
         event: { name: 'Transfer', args: [alice.address, bob.address, aliceDeposit] }
       });
+    });
+  });
+
+  describe('Approval tests', async () => {
+    it('increaseAllowance', async () => {
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseAllowance(bob.address, 100);
+
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(100);
+    });
+
+    it('decreaseAllowance', async () => {
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseAllowance(bob.address, 100);
+      await serviceContract.connect(alice).decreaseAllowance(bob.address, 50);
+
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(50);
+
+      await expect(serviceContract.connect(alice).decreaseAllowance(bob.address, 60))
+        .to.be.reverted;
+
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(50);
+    });
+
+    it('forceDecreaseAllowance', async () => {
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseAllowance(bob.address, 100);
+      await serviceContract.connect(alice).forceDecreaseAllowance(bob.address, 50);
+
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(50);
+
+      expect(await serviceContract.connect(alice).forceDecreaseAllowance(bob.address, 60));
+
+      expect(await serviceContract.getAllowance(alice.address, bob.address)).to.be.equal(0);
+    });
+
+    it('increaseWithdrawalAllowance', async () => {
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseWithdrawalAllowance(bob.address, 100);
+
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(100);
+    });
+
+    it('decreaseWithdrawalAllowance', async () => {
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseWithdrawalAllowance(bob.address, 100);
+      await serviceContract.connect(alice).decreaseWithdrawalAllowance(bob.address, 50);
+
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(50);
+
+      await expect(serviceContract.connect(alice).decreaseWithdrawalAllowance(bob.address, 60))
+        .to.be.reverted;
+
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(50);
+    });
+
+    it('forceDecreaseWithdrawalAllowance', async () => {
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(0);
+
+      await serviceContract.connect(alice).increaseWithdrawalAllowance(bob.address, 100);
+      await serviceContract.connect(alice).forceDecreaseWithdrawalAllowance(bob.address, 50);
+
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(50);
+
+      expect(await serviceContract.connect(alice).forceDecreaseWithdrawalAllowance(bob.address, 60));
+
+      expect(await serviceContract.withdrawalAllowance(alice.address, bob.address)).to.be.equal(0);
     });
   });
 });

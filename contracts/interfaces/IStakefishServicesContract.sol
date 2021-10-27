@@ -134,17 +134,27 @@ interface IStakefishServicesContract {
     /// @notice Withdraws all the ETH of `msg.sender`.
     /// @dev It can only be called when the contract state is not `PostDeposit`.
     /// Emits a {Withdrawal} event.
-    function withdrawAll() external returns (uint256);
+    /// @param minimumETHAmount The minimum amount of ETH that must be received for the transaction not to revert.
+    function withdrawAll(uint256 minimumETHAmount) external returns (uint256);
 
     /// @notice Withdraws the ETH of `msg.sender` which is corresponding to the `amount` of deposit stake.
     /// @dev It can only be called when the contract state is not `PostDeposit`.
     /// Emits a {Withdrawal} event.
-    function withdraw(uint256 amount) external returns (uint256);
+    /// @param amount The amount of deposit stake to be converted to ETH.
+    /// @param minimumETHAmount The minimum amount of ETH that must be received for the transaction not to revert.
+    function withdraw(uint256 amount, uint256 minimumETHAmount) external returns (uint256);
 
     /// @notice Withdraws the ETH of `msg.sender` which is corresponding to the `amount` of deposit stake to a specified address.
     /// @dev It can only be called when the contract state is not `PostDeposit`.
     /// Emits a {Withdrawal} event.
-    function withdrawTo(uint256 amount, address payable beneficiary) external returns (uint256);
+    /// @param amount The amount of deposit stake to be converted to ETH.
+    /// @param beneficiary The address of ETH receiver.
+    /// @param minimumETHAmount The minimum amount of ETH that must be received for the transaction not to revert.
+    function withdrawTo(
+        uint256 amount,
+        address payable beneficiary,
+        uint256 minimumETHAmount
+    ) external returns (uint256);
 
     /// @notice Sets `amount` as the allowance of `spender` over the caller's deposit stake.
     /// @dev Emits an {Approval} event.
@@ -156,11 +166,17 @@ interface IStakefishServicesContract {
 
     /// @notice Decreases the allowance granted to `spender` by the caller.
     /// @dev Emits an {Approval} event indicating the upated allowances;
+    /// It reverts if current allowance is less than `subtractedValue`.
     function decreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
+
+    /// @notice Decreases the allowance granted to `spender` by the caller.
+    /// @dev Emits an {Approval} event indicating the upated allowances;
+    /// It sets allowance to zero if current allowance is less than `subtractedValue`.
+    function forceDecreaseAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @notice Sets `amount` as the allowance of `spender` over the caller's deposit amount that can be withdrawn.
     /// @dev Emits an {WithdrawalApproval} event.
-    function approveWithdrawal(address spender, uint256 amount) external;
+    function approveWithdrawal(address spender, uint256 amount) external returns (bool);
 
     /// @notice Increases the allowance of withdrawal granted to `spender` by the caller.
     /// @dev Emits an {WithdrawalApproval} event indicating the upated allowances;
@@ -168,15 +184,26 @@ interface IStakefishServicesContract {
 
     /// @notice Decreases the allowance of withdrawal granted to `spender` by the caller.
     /// @dev Emits an {WithdrawwalApproval} event indicating the upated allowances;
+    /// It reverts if current allowance is less than `subtractedValue`.
     function decreaseWithdrawalAllowance(address spender, uint256 subtractedValue) external returns (bool);
+
+    /// @notice Decreases the allowance of withdrawal granted to `spender` by the caller.
+    /// @dev Emits an {WithdrawwalApproval} event indicating the upated allowances;
+    /// It reverts if current allowance is less than `subtractedValue`.
+    function forceDecreaseWithdrawalAllowance(address spender, uint256 subtractedValue) external returns (bool);
 
     /// @notice Withdraws the ETH of `depositor` which is corresponding to the `amount` of deposit stake to a specified address.
     /// @dev Emits a {Withdrawal} event.
     /// Emits a {WithdrawalApproval} event indicating the updated allowance.
+    /// @param depositor The address of deposit stake holder.
+    /// @param beneficiary The address of ETH receiver.
+    /// @param amount The amount of deposit stake to be converted to ETH.
+    /// @param minimumETHAmount The minimum amount of ETH that must be received for the transaction not to revert.
     function withdrawFrom(
         address depositor,
         address payable beneficiary,
-        uint256 amount
+        uint256 amount,
+        uint256 minimumETHAmount
     ) external returns (uint256);
 
     /// @notice Transfers `amount` deposit stake from caller to `to`.
@@ -227,4 +254,7 @@ interface IStakefishServicesContract {
 
     /// @notice Returns the commitment which is the hash of the contract address and all inputs to the `createValidator` function.
     function getOperatorDataCommitment() external view returns (bytes32);
+
+    /// @notice Returns the amount of ETH that is withdrawable by `owner`.
+    function getWithdrawableAmount(address owner) external view returns (uint256);
 }

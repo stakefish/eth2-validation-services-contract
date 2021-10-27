@@ -119,6 +119,12 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
         return true;
     }
 
+    function forceDecreaseAllowance(address spender, uint256 subtractedValue) external returns (bool) {
+        uint256 currentAllowance = _allowances[msg.sender][spender];
+        _approve(msg.sender, spender, currentAllowance - _min(subtractedValue, currentAllowance));
+        return true;
+    }
+
     function decimals() public pure returns (uint256) {
         return DECIMALS;
     }
@@ -183,5 +189,16 @@ contract StakefishERC20Wrapper is IERC20, ReentrancyGuard, Initializable {
         _balances[owner] -= amount;
 
         emit Transfer(owner, address(0), amount);
+    }
+
+    function _min(
+        uint256 a,
+        uint256 b
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        return a < b ? a : b;
     }
 }

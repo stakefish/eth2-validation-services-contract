@@ -21,7 +21,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 10000,
+        runs: 100000,
       },
       outputSelection: {
         '*': {

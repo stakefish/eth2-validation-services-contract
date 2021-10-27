@@ -176,7 +176,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
         uint256 balance = address(this).balance;
         require(balance > 0, "Can't end with 0 balance");
         require(_state == State.PostDeposit, "Not allowed in the current state");
-        require((msg.sender == _operatorAddress && block.timestamp >= _exitDate) ||
+        require((msg.sender == _operatorAddress && block.timestamp > _exitDate) ||
                 (_deposits[msg.sender] > 0 && block.timestamp > _exitDate + MAX_SECONDS_IN_EXIT_QUEUE), "Not allowed at the current time");
 
         _state = State.Withdrawn;
@@ -210,36 +210,44 @@ contract StakefishServicesContract is IStakefishServicesContract {
     string private constant WITHDRAWALS_NOT_ALLOWED =
         "Not allowed when validator is active";
 
-    function withdrawAll()
+    function withdrawAll(uint256 minimumETHAmount)
         external
         override
         returns (uint256)
     {
         require(_state != State.PostDeposit, WITHDRAWALS_NOT_ALLOWED);
-        return _executeWithdrawal(msg.sender, payable(msg.sender), _deposits[msg.sender]);
+        uint256 value = _executeWithdrawal(msg.sender, payable(msg.sender), _deposits[msg.sender]);
+        require(value >= minimumETHAmount, "Less than minimum amount");
+        return value;
     }
 
     function withdraw(
-        uint256 amount
+        uint256 amount,
+        uint256 minimumETHAmount
     )
         external
         override
         returns (uint256)
     {
         require(_state != State.PostDeposit, WITHDRAWALS_NOT_ALLOWED);
-        return _executeWithdrawal(msg.sender, payable(msg.sender), amount);
+        uint256 value = _executeWithdrawal(msg.sender, payable(msg.sender), amount);
+        require(value >= minimumETHAmount, "Less than minimum amount");
+        return value;
     }
 
     function withdrawTo(
         uint256 amount,
-        address payable beneficiary
+        address payable beneficiary,
+        uint256 minimumETHAmount
     )
         external
         override
         returns (uint256)
     {
         require(_state != State.PostDeposit, WITHDRAWALS_NOT_ALLOWED);
-        return _executeWithdrawal(msg.sender, beneficiary, amount);
+        uint256 value = _executeWithdrawal(msg.sender, beneficiary, amount);
+        require(value >= minimumETHAmount, "Less than minimum amount");
+        return value;
     }
 
     function approve(
@@ -278,15 +286,29 @@ contract StakefishServicesContract is IStakefishServicesContract {
         return true;
     }
 
+    function forceDecreaseAllowance(
+        address spender,
+        uint256 subtractedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        uint256 currentAllowance = _allowances[msg.sender][spender];
+        _approve(msg.sender, spender, currentAllowance - _min(subtractedValue, currentAllowance));
+        return true;
+    }
+
     function approveWithdrawal(
         address spender,
         uint256 amount
     )
         external
         override
+        returns (bool)
     {
-        _allowedWithdrawals[msg.sender][spender] = amount;
-        emit WithdrawalApproval(msg.sender, spender, amount);
+        _approveWithdrawal(msg.sender, spender, amount);
+        return true;
     }
 
     function increaseWithdrawalAllowance(
@@ -297,7 +319,7 @@ contract StakefishServicesContract is IStakefishServicesContract {
         override
         returns (bool)
     {
-        _approve(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] + addedValue);
+        _approveWithdrawal(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] + addedValue);
         return true;
     }
 
@@ -309,14 +331,28 @@ contract StakefishServicesContract is IStakefishServicesContract {
         override
         returns (bool)
     {
-        _approve(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] - subtractedValue);
+        _approveWithdrawal(msg.sender, spender, _allowedWithdrawals[msg.sender][spender] - subtractedValue);
+        return true;
+    }
+
+    function forceDecreaseWithdrawalAllowance(
+        address spender,
+        uint256 subtractedValue
+    )
+        external
+        override
+        returns (bool)
+    {
+        uint256 currentAllowance = _allowedWithdrawals[msg.sender][spender];
+        _approveWithdrawal(msg.sender, spender, currentAllowance - _min(subtractedValue, currentAllowance));
         return true;
     }
 
     function withdrawFrom(
         address depositor,
         address payable beneficiary,
-        uint256 amount
+        uint256 amount,
+        uint256 minimumETHAmount
     )
         external
         override
@@ -330,7 +366,9 @@ contract StakefishServicesContract is IStakefishServicesContract {
         _allowedWithdrawals[depositor][msg.sender] = newAllowance;
         emit WithdrawalApproval(depositor, msg.sender, newAllowance);
 
-        return _executeWithdrawal(depositor, beneficiary, amount);
+        uint256 value = _executeWithdrawal(depositor, beneficiary, amount);
+        require(value >= minimumETHAmount, "Less than minimum amount");
+        return value; 
     }
 
     function transferDeposit(
@@ -458,6 +496,19 @@ contract StakefishServicesContract is IStakefishServicesContract {
         return _operatorClaimable;
     }
 
+    function getWithdrawableAmount(address owner)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        if (_state == State.PostDeposit) {
+            return 0;
+        }
+
+        return _deposits[owner] * (address(this).balance - _operatorClaimable) / _totalDeposits;
+    }
+
     function _executeWithdrawal(
         address depositor,
         address payable beneficiary,
@@ -525,5 +576,29 @@ contract StakefishServicesContract is IStakefishServicesContract {
 
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
+    }
+
+    function _approveWithdrawal(
+        address owner,
+        address spender,
+        uint256 amount
+    )
+        internal
+    {
+        require(spender != address(0), "Approve to the zero address");
+
+        _allowedWithdrawals[owner][spender] = amount;
+        emit WithdrawalApproval(owner, spender, amount);
+    }
+
+    function _min(
+        uint256 a,
+        uint256 b
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        return a < b ? a : b;
     }
 }
