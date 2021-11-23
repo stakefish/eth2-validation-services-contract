@@ -546,8 +546,10 @@ contract StakefishServicesContract is IStakefishServicesContract {
         _totalDeposits += acceptedDeposit;
 
         emit Deposit(depositor, acceptedDeposit);
-
-        payable(depositor).sendValue(surplus);
+        
+        if (surplus > 0) {
+            payable(depositor).sendValue(surplus);
+        }
     }
 
     function _transfer(
